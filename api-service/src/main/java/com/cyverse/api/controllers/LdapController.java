@@ -9,7 +9,6 @@ import io.javalin.http.HttpStatus;
 
 import javax.naming.NamingException;
 import java.security.NoSuchAlgorithmException;
-import java.util.Map;
 
 public class LdapController {
 
@@ -19,13 +18,13 @@ public class LdapController {
         this.ldapService = ldapService;
     }
 
-    public void addLdapUser(Context ctx)
+    public void updateLdapUser(Context ctx)
             throws UserException, ResourceAlreadyExistsException,
             NamingException, NoSuchAlgorithmException {
         UserModel user = ctx.bodyAsClass(UserModel.class);
         user.validateUsername();
-        ldapService.addLdapUser(user);
-        ctx.status(HttpStatus.CREATED);
+        ldapService.completeLdapUserAttributes(user);
+        ctx.status(HttpStatus.OK);
     }
 
     public void addLdapUserToGroup(Context ctx)

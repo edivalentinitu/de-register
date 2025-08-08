@@ -54,8 +54,8 @@ public class Application {
         app.put("/api/users/irods", irodsController::grantUserAccess);
 
         LdapController ldapController = new LdapController(ldapService);
-        app.post("/api/users/ldap", ldapController::addLdapUser);
-        app.put("/api/users/ldap", ldapController::addLdapUserToGroup);
+        app.put("/api/users/ldap", ldapController::updateLdapUser);
+        app.put("/api/ǵroups/ldap", ldapController::addLdapUserToGroup);
     }
 
     private static ApiServiceConfig loadConfig(String filePath) throws Exception {
