@@ -43,23 +43,36 @@ public class LdapService {
     }
 
     /**
-     * Adds user to LDAP, if it does not already exist.
+     * Adds attributes to an already existing LDAP user if it exists.
      *
-     * @param user the user to register in LDAP
+     * @param user the user registered in LDAP
      */
-    public void addLdapUser(UserModel user)
+    public void completeLdapUserAttributes(UserModel user)
             throws ResourceAlreadyExistsException, NamingException,
             NoSuchAlgorithmException {
-        logger.debug("Try adding user to LDAP: {}", user.getUsername());
+        logger.debug("Try adding attributes to LDAP user: {}", user.getUsername());
 
         String entryDN = "uid=" + user.getUsername() +",ou=People," + ldapConfig.getBaseDN();
         try {
-            addEntryDN(entryDN, getUserAttributes(user));
-            logger.info("LDAP user added successfully: {}", user.getUsername());
+            Attributes attrs = getUserAttributes(user);
+            ModificationItem[] newAttrs = new ModificationItem[attrs.size()+1];
+            NamingEnumeration<?> resultedAttrs = attrs.getAll();
+
+            int i = 0;
+            while (resultedAttrs.hasMore()) {
+                Attribute toAdd = (Attribute) resultedAttrs.next();
+                newAttrs[i++] =
+                    new ModificationItem(
+                            DirContext.ADD_ATTRIBUTE,
+                            toAdd
+                    );
+            }
+
+            modifyAttrsExtraOperation(entryDN, newAttrs);
+            logger.info("LDAP user successfully updated: {}", user.getUsername());
         } catch (NamingException e) {
-            if (e.getMessage().contains("Entry Already Exists")) {
-                logger.debug("User {} already registered in LDAP", user.getUsername());
-                throw new ResourceAlreadyExistsException("User already registered in LDAP");
+            if (e instanceof AttributeInUseException) {
+                throw new ResourceAlreadyExistsException("Attribute already in use: " + e.getMessage());
             }
             logger.error("Error adding LDAP user: {}\n{} ", user.getUsername(), e.getMessage());
             throw e;
@@ -88,7 +101,7 @@ public class LdapService {
                     DirContext.ADD_ATTRIBUTE,
                     new BasicAttribute("memberUid", username)
             );
-            modifyAttrs(groupDn, mods);
+            modifyAttrsSimple(groupDn, mods);
             logger.info("LDAP user: {} added successfully to group: {}", username, group);
         } catch (NamingException e) {
             if (e instanceof AttributeInUseException) {
@@ -101,23 +114,26 @@ public class LdapService {
         }
     }
 
-    protected void addEntryDN(String entryDN, Attributes attrs) throws NamingException {
+    protected void modifyAttrsExtraOperation(String name, ModificationItem[] items) throws NamingException {
         DirContext ctx = new InitialDirContext(env);
         // TODO custom exception with message for empty optional
-        attrs.put("uidNumber", getLastAssignedUid(ctx).orElseThrow());
-        ctx.createSubcontext(entryDN, attrs);
+        items[items.length-1] = new ModificationItem(
+                DirContext.ADD_ATTRIBUTE,
+                new BasicAttribute("uidNumber", getLastAssignedUid(ctx).orElseThrow())
+        );
+        ctx.modifyAttributes(name, items);
         ctx.close();
     }
 
-    protected void modifyAttrs(String name, ModificationItem[] items) throws NamingException {
+    protected void modifyAttrsSimple(String name, ModificationItem[] items) throws NamingException {
         DirContext ctx = new InitialDirContext(env);
         ctx.modifyAttributes(name, items);
         ctx.close();
     }
 
+    // TODO Consider moving these to a cfg file.
     private Attributes getUserAttributes(UserModel user) throws NoSuchAlgorithmException {
         Attribute objClass = new BasicAttribute("objectClass");
-        objClass.add("inetOrgPerson");
         objClass.add("posixAccount");
         // TODO set shadow properties?
         objClass.add("shadowAccount");
@@ -128,7 +144,6 @@ public class LdapService {
         attrs.put("givenName", user.getFirstName());
         attrs.put("sn", user.getFirstName());
         attrs.put("cn", user.getFirstName() + " " + user.getLastName());
-        attrs.put("uid", user.getUsername());
         attrs.put("mail", user.getEmail());
         // TODO Check and see if there is a better way to set the gidNumber
         attrs.put("gidNUmber", "10013");
