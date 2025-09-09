@@ -6,7 +6,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: mailgateway
-  namespace: kube-system
+  namespace: mailserver
   labels:
     app: mailgateway
 spec:
@@ -70,7 +70,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: mailgateway
-  namespace: kube-system
+  namespace: mailserver
 spec:
   selector:
     app: mailgateway
